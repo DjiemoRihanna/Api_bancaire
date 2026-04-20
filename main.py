@@ -3,16 +3,20 @@ from sqlalchemy.orm import Session
 from sqlalchemy import Column, Integer, String, Float
 from database import Base, engine, get_db
 
-# Initialisation de FastAPI
-app = FastAPI(title="Mon API Bancaire")
-
-# Modèle de la table 'comptes' (doit correspondre à tes captures d'écran)
+# --- DÉFINITION DU MODÈLE ---
+# Doit correspondre à la structure vue dans phpMyAdmin
 class Compte(Base):
     __tablename__ = "comptes"
     id = Column(Integer, primary_key=True, index=True)
     nom_titulaire = Column(String(100))
     type_compte = Column(String(20), default="courant")
     solde = Column(Float, default=0.0)
+
+# --- INITIALISATION ---
+app = FastAPI(title="Mon API Bancaire Pro")
+
+# CRITICAL : On crée les tables APRES avoir défini la classe Compte
+Base.metadata.create_all(bind=engine)
 
 # --- ROUTES DE L'API ---
 
