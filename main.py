@@ -13,7 +13,7 @@ class Compte(Base):
     solde = Column(Float, default=0.0)
 
 # --- INITIALISATION ---
-app = FastAPI(title="Mon API Bancaire Pro")
+app = FastAPI(title="API Bancaire ")
 
 # CRITICAL : On crée les tables APRES avoir défini la classe Compte
 Base.metadata.create_all(bind=engine)
