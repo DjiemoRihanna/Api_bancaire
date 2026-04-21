@@ -1,61 +1,65 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import Column, Integer, String, Float
-from database import Base, engine, get_db
+from database import Base, engine, get_db, Compte, Transaction
 
-# --- DÉFINITION DU MODÈLE ---
-# Doit correspondre à la structure vue dans phpMyAdmin
-class Compte(Base):
-    __tablename__ = "comptes"
-    id = Column(Integer, primary_key=True, index=True)
-    nom_titulaire = Column(String(100))
-    type_compte = Column(String(20), default="courant")
-    solde = Column(Float, default=0.0)
+app = FastAPI(
+    title="Système Bancaire Pro - Devoir 304",
+    description="API bancaire complète avec gestion de transactions, transferts et tests de validation.",
+    version="2.0"
+)
 
-# --- INITIALISATION ---
-app = FastAPI(title="API Bancaire ")
-
-# CRITICAL : On crée les tables APRES avoir défini la classe Compte
+# Création automatique des tables
 Base.metadata.create_all(bind=engine)
 
-# --- ROUTES DE L'API ---
-
-@app.get("/")
-def home():
-    return {"message": "Bienvenue sur l'API de ma banque ! Allez sur /docs pour tester."}
-
-# 1. Créer un compte
-@app.post("/comptes/")
+@app.post("/comptes/", tags=["Gestion des Comptes"])
 def creer_compte(nom: str, solde_initial: float = 0.0, db: Session = Depends(get_db)):
-    nouveau_compte = Compte(nom_titulaire=nom, solde=solde_initial)
-    db.add(nouveau_compte)
+    if solde_initial < 0:
+        raise HTTPException(status_code=400, detail="Le solde ne peut pas être négatif")
+    nouveau = Compte(nom_titulaire=nom, solde=solde_initial)
+    db.add(nouveau)
     db.commit()
-    db.refresh(nouveau_compte)
-    return nouveau_compte
+    db.refresh(nouveau)
+    return nouveau
 
-# 2. Liste de tous les comptes
-@app.get("/comptes/")
-def liste_comptes(db: Session = Depends(get_db)):
-    return db.query(Compte).all()
-
-# 3. Faire un dépôt
-@app.put("/comptes/{compte_id}/depot")
-def deposer(compte_id: int, montant: float, db: Session = Depends(get_db)):
-    compte = db.query(Compte).filter(Compte.id == compte_id).first()
-    if not compte:
-        raise HTTPException(status_code=404, detail="Compte non trouvé")
-    compte.solde += montant
-    db.commit()
-    return {"message": f"Dépôt réussi. Nouveau solde: {compte.solde}"}
-
-# 4. Faire un retrait
-@app.put("/comptes/{compte_id}/retrait")
-def retirer(compte_id: int, montant: float, db: Session = Depends(get_db)):
+@app.put("/comptes/{compte_id}/retrait", tags=["Transactions"])
+def retirer(compte_id: int, montant: float = Query(..., gt=0), db: Session = Depends(get_db)):
     compte = db.query(Compte).filter(Compte.id == compte_id).first()
     if not compte:
         raise HTTPException(status_code=404, detail="Compte non trouvé")
     if compte.solde < montant:
-        raise HTTPException(status_code=400, detail="Solde insuffisant !")
+        raise HTTPException(status_code=400, detail="Solde insuffisant")
+    
     compte.solde -= montant
+    db.add(Transaction(type_operation="Retrait", montant=montant, compte_id=compte_id))
     db.commit()
-    return {"message": f"Retrait réussi. Nouveau solde: {compte.solde}"}
+    return {"message": "Retrait réussi", "nouveau_solde": compte.solde}
+
+@app.post("/transfert", tags=["Transactions"])
+def transfert(expediteur_id: int, destinataire_id: int, montant: float = Query(..., gt=0), db: Session = Depends(get_db)):
+    exp = db.query(Compte).filter(Compte.id == expediteur_id).first()
+    dest = db.query(Compte).filter(Compte.id == destinataire_id).first()
+    
+    if not exp or not dest:
+        raise HTTPException(status_code=404, detail="Compte introuvable")
+    if exp.solde < montant:
+        raise HTTPException(status_code=400, detail="Solde insuffisant")
+    
+    exp.solde -= montant
+    dest.solde += montant
+    db.add(Transaction(type_operation=f"Transfert vers ID {destinataire_id}", montant=montant, compte_id=expediteur_id))
+    db.add(Transaction(type_operation=f"Reçu de ID {expediteur_id}", montant=montant, compte_id=destinataire_id))
+    db.commit()
+    return {"message": "Transfert effectué"}
+
+@app.get("/comptes/{compte_id}/historique", tags=["Consultation"])
+def voir_historique(compte_id: int, db: Session = Depends(get_db)):
+    return db.query(Transaction).filter(Transaction.compte_id == compte_id).all()
+
+@app.delete("/comptes/{compte_id}", tags=["Gestion des Comptes"])
+def supprimer_compte(compte_id: int, db: Session = Depends(get_db)):
+    compte = db.query(Compte).filter(Compte.id == compte_id).first()
+    if not compte:
+        raise HTTPException(status_code=404, detail="Compte introuvable")
+    db.delete(compte)
+    db.commit()
+    return {"message": "Compte supprimé"}
