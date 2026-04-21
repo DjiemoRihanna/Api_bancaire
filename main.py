@@ -2,13 +2,23 @@ from fastapi import FastAPI, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from database import Base, engine, get_db, Compte, Transaction
 
+# On laisse la version vide et une description minimale pour épurer l'interface
 app = FastAPI(
     title="Système Bancaire",
-    description="API bancaire complète avec gestion de transactions, transferts et tests de validation.",
+    description="Plateforme de gestion et de test des opérations bancaires.",
+    version="" 
 )
 
 # Création automatique des tables
 Base.metadata.create_all(bind=engine)
+
+# --- ROUTES ---
+
+@app.get("/", include_in_schema=False)
+def root():
+    """Redirige automatiquement vers l'interface de test"""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/docs")
 
 @app.post("/comptes/", tags=["Gestion des Comptes"])
 def creer_compte(nom: str, solde_initial: float = 0.0, db: Session = Depends(get_db)):
