@@ -3,9 +3,8 @@ from sqlalchemy.orm import Session
 from database import Base, engine, get_db, Compte, Transaction
 
 app = FastAPI(
-    title="Système Bancaire Pro - Devoir 304",
+    title="Système Bancaire",
     description="API bancaire complète avec gestion de transactions, transferts et tests de validation.",
-    version="2.0"
 )
 
 # Création automatique des tables
