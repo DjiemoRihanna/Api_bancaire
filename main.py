@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from database import Base, engine, get_db, Compte, Transaction
 
-# On utilise des espaces vides pour supprimer les textes techniques de l'entête
+# Interface ultra-épurée
 app = FastAPI(
     title="Système Bancaire",
     description=" ",
@@ -12,19 +12,15 @@ app = FastAPI(
 # Création automatique des tables
 Base.metadata.create_all(bind=engine)
 
-# --- ROUTE PRINCIPALE ---
-
+# --- ACCUEIL ---
 @app.get("/")
 def root():
-    """Cette fonction définit ce qui s'affiche sur https://api-bancaire-oxjy.onrender.com/"""
     return {
         "Statut": "Opérationnel",
-        "Application": "Gestion Bancaire API",
         "Auteur": "Grace - L3 Cybersécurité"
     }
 
 # --- GESTION DES COMPTES ---
-
 @app.post("/comptes/", tags=["Gestion des Comptes"])
 def creer_compte(nom: str, solde_initial: float = 0.0, db: Session = Depends(get_db)):
     if solde_initial < 0:
@@ -45,7 +41,6 @@ def supprimer_compte(compte_id: int, db: Session = Depends(get_db)):
     return {"message": "Compte supprimé avec succès"}
 
 # --- TRANSACTIONS ---
-
 @app.put("/comptes/{compte_id}/retrait", tags=["Transactions"])
 def retirer(compte_id: int, montant: float = Query(..., gt=0), db: Session = Depends(get_db)):
     compte = db.query(Compte).filter(Compte.id == compte_id).first()
@@ -77,6 +72,10 @@ def transfert(expediteur_id: int, destinataire_id: int, montant: float = Query(.
     return {"message": "Transfert effectué avec succès"}
 
 # --- CONSULTATION ---
+@app.get("/comptes/", tags=["Consultation"])
+def liste_comptes(db: Session = Depends(get_db)):
+    """Affiche la liste de tous les comptes enregistrés"""
+    return db.query(Compte).all()
 
 @app.get("/comptes/{compte_id}/historique", tags=["Consultation"])
 def voir_historique(compte_id: int, db: Session = Depends(get_db)):
