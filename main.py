@@ -2,9 +2,9 @@ from fastapi import FastAPI, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from database import Base, engine, get_db, Compte, Transaction
 
-# Interface ultra-épurée pour Swagger
+# On utilise des espaces vides pour supprimer les textes techniques de l'entête
 app = FastAPI(
-    title=" ", 
+    title="Système Bancaire",
     description=" ",
     version=" "
 )
@@ -12,12 +12,18 @@ app = FastAPI(
 # Création automatique des tables
 Base.metadata.create_all(bind=engine)
 
-# --- ROUTES ---
+# --- ROUTE PRINCIPALE ---
 
 @app.get("/")
 def root():
-    """Message simple sur la page d'accueil"""
-    return {"message": "API Bancaire Opérationnelle. Ajoutez /docs à l'URL pour tester."}
+    """Cette fonction définit ce qui s'affiche sur https://api-bancaire-oxjy.onrender.com/"""
+    return {
+        "Statut": "Opérationnel",
+        "Application": "Gestion Bancaire API",
+        "Auteur": "Grace - L3 Cybersécurité"
+    }
+
+# --- GESTION DES COMPTES ---
 
 @app.post("/comptes/", tags=["Gestion des Comptes"])
 def creer_compte(nom: str, solde_initial: float = 0.0, db: Session = Depends(get_db)):
@@ -28,6 +34,17 @@ def creer_compte(nom: str, solde_initial: float = 0.0, db: Session = Depends(get
     db.commit()
     db.refresh(nouveau)
     return nouveau
+
+@app.delete("/comptes/{compte_id}", tags=["Gestion des Comptes"])
+def supprimer_compte(compte_id: int, db: Session = Depends(get_db)):
+    compte = db.query(Compte).filter(Compte.id == compte_id).first()
+    if not compte:
+        raise HTTPException(status_code=404, detail="Compte introuvable")
+    db.delete(compte)
+    db.commit()
+    return {"message": "Compte supprimé avec succès"}
+
+# --- TRANSACTIONS ---
 
 @app.put("/comptes/{compte_id}/retrait", tags=["Transactions"])
 def retirer(compte_id: int, montant: float = Query(..., gt=0), db: Session = Depends(get_db)):
@@ -57,17 +74,10 @@ def transfert(expediteur_id: int, destinataire_id: int, montant: float = Query(.
     db.add(Transaction(type_operation=f"Transfert vers ID {destinataire_id}", montant=montant, compte_id=expediteur_id))
     db.add(Transaction(type_operation=f"Reçu de ID {expediteur_id}", montant=montant, compte_id=destinataire_id))
     db.commit()
-    return {"message": "Transfert effectué"}
+    return {"message": "Transfert effectué avec succès"}
+
+# --- CONSULTATION ---
 
 @app.get("/comptes/{compte_id}/historique", tags=["Consultation"])
 def voir_historique(compte_id: int, db: Session = Depends(get_db)):
     return db.query(Transaction).filter(Transaction.compte_id == compte_id).all()
-
-@app.delete("/comptes/{compte_id}", tags=["Gestion des Comptes"])
-def supprimer_compte(compte_id: int, db: Session = Depends(get_db)):
-    compte = db.query(Compte).filter(Compte.id == compte_id).first()
-    if not compte:
-        raise HTTPException(status_code=404, detail="Compte introuvable")
-    db.delete(compte)
-    db.commit()
-    return {"message": "Compte supprimé"}
